@@ -68,170 +68,185 @@
  *                     invalid command line option is specified - MT
  *                   - Removed '--verbose' option - MT
  *                   - Removed DATE macro - MT
- * 29 Mar 20   0.6   - Added a boolean type definition and defined true and
- *                     false - MT
+ * 29 Mar 20   0.6   - Added a boolean type defination and defined true and
+ *                     false - MEJT
  * 03 Jul 20   0.7   - Tidied up formatting - MT
- *                   - Changed program name to use defined text - MT
- *                   - Added  separate routines to display program  version
+ *                   - Changed progran name to use defined text - MT
+ *                   - Added  seperate routines to display program  version
  *                     and help text - MT
+ * 09 Jul 20   0.8   - Now uses fread() instead of fgetc() which results in
+ *                     a four or five fold inrease in performance - MT
+ *                   - Moved code to print contents of buffer to a seperate
+ *                     function  (depends on glabal vairables to keep track
+ *                     of line number, blank lines, and the last  character
+ *                     printed - MT
  *
  * To Do:            - Default to copying standard input to standard output
  *                     if no arguments are specified on the command line.
  *                   - Warn user if a command line option is ambiguous.
- *                   - Use a buffer.
- */
+ *                   - Check that source is a valid file...
+*/
  
 #define NAME         "cat"
-#define VERSION      "0.7"
-#define BUILD        "0026"
+#define VERSION      "0.8"
+#define BUILD        "0028"
 #define AUTHOR       "MT"
 #define COPYRIGHT    (__DATE__ +7) /* Extract copyright year from date */
  
-#define DEBUG(code)  do {if (__DEBUG__) {code;}} while(0)
-#define __DEBUG__    0
-
 #define true         1
 #define false        0
  
-#include <string.h>
-#include <errno.h>
+#define BUFFER_SIZE  16
+ 
 #include <stdio.h>
 #include <stdlib.h>
-
-typedef char bool;
+#include <string.h>
+#include <errno.h>
  
-static bool bflag = false, hflag = false, nflag = false, rflag = false, sflag = false;
-static int line = 0;
-static int chr, prev, blank;
+char _bflag, _hflag, _nflag, _rflag, _sflag;
+char _last; /* Last character read, used to check for a blank lines */
+int _line;  /* Current line number */
+int _blanks;/* Number of successive blank lines */ 
  
 void about() { /* Display help text */
-   fprintf(stdout, "Usage: %s [OPTION]... [FILE]...\n"
-      "Concatenate FILE(s)to standard output.\n\n" 
-      "  -f, --filenames          display filenames\n"
-      "  -n, --number             number all output lines \n"
-      "  -r, --restart            line numbers start at zero, implies -n\n" 
-      "  -s, --squeeze-blank      suppress repeated empty output lines\n"
-      "      --verbose            display verbose output\n"
-      "  -?, --help               display this help and exit\n"
-      "      --version            output version information and exit\n\n"
-      "With no FILE, or when FILE is -, read standard input.\n", 
-      NAME);
+   fprintf(stdout, "Usage: %s [OPTION]... [FILE]...\n", NAME);
+   fprintf(stdout, "Concatenate FILE(s)to standard output.\n\n");
+   fprintf(stdout, "  -f, --filenames          display filenames\n");
+   fprintf(stdout, "  -n, --number             number all output lines \n");
+   fprintf(stdout, "  -r, --restart            line numbers start at zero, implies -n\n");
+   fprintf(stdout, "  -s, --squeeze-blank      suppress repeated empty output lines\n");
+   fprintf(stdout, "      --verbose            display verbose output\n");
+   fprintf(stdout, "  -?, --help               display this help and exit\n");
+   fprintf(stdout, "      --version            output version information and exit\n\n");
+   fprintf(stdout, "With no FILE, or when FILE is -, read standard input.\n");
    exit(0);
 }
-
+ 
 void version() { /* Display version information */
-   fprintf(stderr, "%s: Version %s\n"
-      "Copyright(C) %s %s\n"
-      "License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>.\n"
-      "This is free software: you are free to change and redistribute it.\n"
-      "There is NO WARRANTY, to the extent permitted by law.\n", 
-      NAME, VERSION, COPYRIGHT, AUTHOR);
+   fprintf(stderr, "%s: Version %s\n", NAME, VERSION);
+   fprintf(stderr, "Copyright(C) %s %s\n", COPYRIGHT, AUTHOR);
+   fprintf(stderr, "License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>.\n");
+   fprintf(stderr, "This is free software: you are free to change and redistribute it.\n");
+   fprintf(stderr, "There is NO WARRANTY, to the extent permitted by law.\n");
    exit(0);
+}
+ 
+int fprintbuf (FILE *_file, int _size, char _buffer[]) {
+   int _index;
+   for (_index = 0; _index < _size; _index++) {
+      if ((_last == '\n') && (_last == _buffer[_index])) {
+         _blanks++; /* Count consecutive blank lines */
+      } else {
+         _blanks = 0;
+      }
+      if ((!_sflag) || (_blanks < 2)) {
+         if ((_last == '\n') && !(_buffer[_index] == '\n' && _bflag)) {
+            if (_nflag) {
+               fprintf(_file, "%6d\t", _line); /* Print line number */
+            }
+            _line++;
+         }
+         fprintf(_file, "%c", _buffer[_index]);
+      }
+      _last = _buffer[_index]; /* Remember the last character */
+   }
+   return(fflush(_file)); /* Return status from fflush() */
 }
  
 int main(int argc, char **argv) {
    FILE *file;
-   int errnum;
-   int count, index;
-   bool flag = true;
+   char flag = false;
+   char _buffer[BUFFER_SIZE];
+   int _bytes; /* Number of bytes read from file */
+   int _size;  /* Number of bytes read into the buffer */
+   int _count, _index, _status;
  
    /* Parse command line */
-   for (index = 1; index < argc && flag; index++) {
-      if (argv[index][0] == '-') {
-         count = 1;
-         while (argv[index][count] != 0) {
-            switch (argv[index][count]) {
+   for (_count = 1; _count < argc && !flag; _count++) {
+      if (argv[_count][0] == '-') {
+         _index = 1;
+         while (argv[_count][_index] != 0) {
+            switch (argv[_count][_index]) {
             case 'b': /* Number non empty lines */
-               nflag = true; bflag = true; break;
+               _nflag = true; _bflag = true; break;
             case 'f': /* Print filenames headings */
-               hflag = true; break;          
+               _hflag = true; break;          
             case 'n': /* Number lines */
-               nflag = true; break;
+               _nflag = true; break;
             case 'r': /* Restart numbering */
-               rflag = true; nflag = true; break;
+               _rflag = true; _nflag = true; break;
             case 's': /* Squeeze blank lines */
-               sflag = true; break;
+               _sflag = true; break;
             case '?': /* Display help */
                about();               
             case '-': /* '--' terminates command line processing */
-               DEBUG(fprintf(stderr, "%s:%0d: argv[%0d][%0d]: '%c'\n", argv[0], __LINE__, index, count, argv[index][count]));
-               count = strlen(argv[index]);
-               if (count == 2) 
-                 flag = false; /* '--' terminates command line processing */
+               _index = strlen(argv[_count]);
+               if (_index == 2) 
+                 flag = true; /* '--' terminates command line processing */
                else
-                  if (!strncmp(argv[index], "--version", count)) {
+                  if (!strncmp(argv[_count], "--version", _index)) {
                      version(); /* Display version information */
                   }
-                  else if (!strncmp(argv[index], "--number-nonblank", count)) {
-                     nflag = true; bflag = true;
+                  else if (!strncmp(argv[_count], "--number-nonblank", _index)) {
+                     _nflag = true; _bflag = true;
                   }
-                  else if (!strncmp(argv[index], "--number", count)) {
-                     nflag = true;
+                  else if (!strncmp(argv[_count], "--number", _index)) {
+                     _nflag = true;
                   }
-                  else if (!strncmp(argv[index], "--squeeze-blank", count)) {
-                     sflag = true;
+                  else if (!strncmp(argv[_count], "--squeeze-blank", _index)) {
+                     _sflag = true;
                   }
-                  else if (!strncmp(argv[index], "--restart-numbering", count)) {
-                     rflag = true;
+                  else if (!strncmp(argv[_count], "--restart-numbering", _index)) {
+                     _rflag = true;
                   }
-                  else if (!strncmp(argv[index], "--show-filenames", count)) {
-                     hflag = true;
+                  else if (!strncmp(argv[_count], "--show-filenames", _index)) {
+                     _hflag = true;
                   }
-                  else if (!strncmp(argv[index], "--help", count)) {
+                  else if (!strncmp(argv[_count], "--help", _index)) {
                      about();
                   }
                   else { /* If we get here then the we have an invalid long option */
-                     fprintf(stderr, "%s: invalid option %s\n", argv[0], argv[index]);
+                     fprintf(stderr, "%s: invalid option %s\n", argv[0], argv[_count]);
                      fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
                      exit(-1);
                }
-               count--;
+               _index--;
                break;
             default: /* If we get here the single letter option is unknown */
-               fprintf(stderr, "%s: unknown option -- %c\n", argv[0], argv[index][count]);
+               fprintf(stderr, "%s: unknown option -- %c\n", argv[0], argv[_count][_index]);
                fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
                exit(-1);
             }
-            count++;
+            _index++;
          }
-         if (argv[index][1] != 0) {
-            for (count = index; count < argc - 1; count++) argv[count] = argv[count + 1];
-            argc--; index--;
+         if (argv[_count][1] != 0) {
+            for (_index = _count; _index < argc - 1; _index++) argv[_index] = argv[_index + 1];
+            argc--; _count--;
          }
       }
    }
  
    /* Display files */
-   prev = '\n';
-   for (count = 1; count < argc; count++) {
-      if ((file = fopen(argv[count], "r")) != NULL) {
-         if (hflag) {
-            if (prev != '\n') fprintf(stdout, "\n");
-            fprintf(stdout, "%s:\n", argv[count]);
-            prev = '\n';
-         }
-         blank = 0;
-         if (rflag) line = 0;
-         while ((chr = getc(file)) != EOF) {
-            if (prev == '\n') {
-            ++blank;
-            if (sflag && chr == '\n' && blank > 1)
-               continue;
-            if (nflag)
-               if (!bflag || chr != '\n')
-                  fprintf(stdout, "%6d\t", ++line);
-            } 
-         else 
-            blank = 0;
-         fprintf(stdout, "%c", chr);
-         fflush(stdout);
-         prev = chr;
+   _line = 1;
+   for (_count = 1; _count < argc; _count++) {
+      _bytes = 0;
+      _size = 0;
+      if ((file = fopen(argv[_count], "r")) != NULL) {
+         while((_size = fread(_buffer, 1, BUFFER_SIZE, file)) > 0 ){ 
+            if (_bytes == 0) {
+               if (_hflag) fprintf(stdout, "%s:\n", argv[_count]); /* Optionally print filename */
+               if (_rflag) _line = 1; /* Optionally reset line numbers */
+               _last = '\n';
+            }
+            _bytes += _size;
+            fprintbuf (stdout, _size, _buffer); /* Print buffer */
          }
          fclose(file);
       }
       else {
-         errnum = errno;
-         fprintf(stderr, "%s: %s: %s\n", argv[0], argv[count], strerror(errnum));      
+         _status = errno;
+         fprintf(stderr, "%s: %s: %s\n", argv[0], argv[_count], strerror(_status));      
       }
    }
+   exit (0);
 }
