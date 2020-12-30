@@ -3,7 +3,7 @@
  *
  * Copyright(C) 2019 - MT
  *
- * A minimal implementation of the ubiquitous 'cat'.
+ * A not quite so minimal implementation of the ubiquitous 'cat'.
  *
  * Implements a subset of the GNU 'cat' functionality.
  * 
@@ -22,7 +22,7 @@
  *
  * You  should have received a copy of the GNU General Public License along
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
- * 
+ *
  * 03 Mar 14   0.1   - Initial version - MT
  * 04 Apr 18   0.2   - Added some command line options including the option
  *                     to restart line numbering at the start of every file
@@ -47,7 +47,7 @@
  *                   - Fixed  bug  in option parsing routine to allow  more
  *                     than  one  option  to  be  specified  in  a   single
  *                     parameter - MT
- *                   - Prints header after the file is opened - MT
+ *                   - Prints header after the fle is opened - MT
  *                   - Updated description - MT
  * 14 Mar 19         - Uses  errno to print error message (it is  necessary
  *                     to  assign errno to a local vairable before  calling
@@ -58,21 +58,26 @@
  *                     not treated as an invalid option - MT
  *                   - Mofified DEBUG macro - MT
  *                   - Option delimiter no longer defined in a macro - MT
+ *             0.4   - Added the capability to parse long options including
+ *                     those that are only partly complete and used this to
+ *                     add the ability to display the program version using
+ *                     a macro to return the copyright year - MT
  */
-  
-#define VERSION       "0.3"
-#define BUILD         "0017"
+ 
+#define VERSION       "0.4"
+#define BUILD         "0018"
 #define AUTHOR        "MT"
 #define DATE          "16 Mar 19"
+#define COPYRIGHT     (__DATE__ +7) /* Extract copyright year from date */
  
-#define DEBUG(code)   do {if (__DEBUG__) {code;}} while(0)
-#define __DEBUG__  0
+#define DEBUG(code)   do {if (ENABLE_DEBUG) {code;}} while(0)
+#define ENABLE_DEBUG  0
  
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
- 
+  
 static int bflag = 0, hflag = 0, nflag = 0, rflag = 0, sflag = 0;
 static int line = 0;
 static int chr, prev, blank;
@@ -100,6 +105,7 @@ int cat(FILE *file) {
 int main(int argc, char **argv) {
   FILE *file;
   int errnum;
+   
   int count, index;
   int flag = 1;
  
@@ -107,7 +113,7 @@ int main(int argc, char **argv) {
     if (argv[index][0] == '-') {
       count = 1;
       while (argv[index][count] != 0) {
-        switch (argv[index][count]) {
+        switch (argv[index][count]) { 
           case 'b': /* Number non empty lines */
             nflag = 1; bflag = 1; break;
           case 'h': /* Print filenames headings */
@@ -118,21 +124,30 @@ int main(int argc, char **argv) {
             rflag = 1; nflag = 1; break;
           case 's': /* Squeeze blank lines */
             sflag = 1; break;
-          case '-': /* '--' terminates command line processing */
+          case '-': /* Check for long options */
             DEBUG(fprintf(stderr, "%s:%0d: argv[%0d][%0d]: '%c'\n", argv[0], __LINE__, index, count, argv[index][count]));
             count = strlen(argv[index]);
             if (count == 2) 
               flag = 0; /* '--' terminates command line processing */
-            else { /* If we get here then the we have an invalid long option */
-              fprintf(stderr, "%s: invalid option %s\n", argv[0], argv[index]);
-              fprintf(stderr, "Usage: %s [-v] [--version] [file...]\n", argv[0]);
-              exit(-1);
-            }
+            else
+              if (!strncmp(argv[index], "--version", count)) { /* Display version information */
+                fprintf(stderr, "%s: Version %s\n", argv[0], VERSION);
+                fprintf(stderr, "Copyright(C) %s %s\n", COPYRIGHT, AUTHOR);
+                fprintf(stderr, "License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>.\n");
+                fprintf(stderr, "This is free software: you are free to change and redistribute it.\n");
+                fprintf(stderr, "There is NO WARRANTY, to the extent permitted by law.\n");
+                exit(0);
+              }
+              else {
+                fprintf(stderr, "%s: invalid option %s\n", argv[0], argv[index]);
+                fprintf(stderr, "Usage: %s [-v] [--version] [file...]\n", argv[0]);
+                exit(-1);
+              }
             count--;
             break;
-          default: /* If we get here the single letter option is unknown */
+          default: /* If we get here the option is invalid */
             fprintf(stderr, "%s: unknown option -- %c\n", argv[0], argv[index][count]);
-            fprintf(stderr, "Usage: %s [-bnrs] [file...]\n", argv[0]);
+              fprintf(stderr, "Usage: %s [-v] [--version] [file...]\n", argv[0]);
             exit(-1);
         }
         count++;
