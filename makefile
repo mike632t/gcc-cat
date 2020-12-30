@@ -20,6 +20,9 @@
 #       of each line NOT spaces..!
 #	
 #  09 Apr 12   0.1   - Initial version - MEJT
+#  17 Aug 13   0.2   - Added make clean and make verify to delete any 
+#                      object files and automatically compare the output
+#                      against that expected - MEJT
 #
 PROGRAM = gcc-cat
 SOURCE = $(PROGRAM).c
@@ -43,4 +46,9 @@ $(PROGRAM): $(OBJECT)
 $(OBJECT) : $(SOURCE)
 #	@echo '*** Compiling $(SOURCE)'
 	@$(CC) $(FLAGS) -c $(SOURCE)
-
+#
+#  	make clean - Clean up any object files.
+clean:
+#	@echo '*** Cleaning up object files'
+	@rm -f $(OBJECT)
+#
