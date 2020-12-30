@@ -68,16 +68,16 @@
  *                     invalid command line option is specified - MT
  *                   - Removed '--verbose' option - MT
  *                   - Removed DATE macro - MT
- * 29 Mar 20   0.6   - Added a boolean type definition and defined true and
+ * 29 Mar 20   0.6   - Added a boolean type defination and defined true and
  *                     false - MEJT
  * 03 Jul 20   0.7   - Tidied up formatting - MT
- *                   - Changed program name to use defined text - MT
- *                   - Added  separate routines to display program  version
+ *                   - Changed progran name to use defined text - MT
+ *                   - Added  seperate routines to display program  version
  *                     and help text - MT
  * 09 Jul 20   0.8   - Now uses fread() instead of fgetc() which results in
- *                     a four or five fold increase in performance - MT
- *                   - Moved code to print contents of buffer to a separate
- *                     function  (depends on global variables to keep track
+ *                     a four or five fold inrease in performance - MT
+ *                   - Moved code to print contents of buffer to a seperate
+ *                     function  (depends on glabal vairables to keep track
  *                     of line number, blank lines, and the last  character
  *                     printed - MT
  * 11 Jul 20   0.9   - Checks that the path is not a directory - MT
@@ -91,14 +91,18 @@
  *                     character using either a generic busy wait loop or a
  *                     platform specific routine for linux and VMS - MT
  * 03 Aug 20   0.10  - Now uses the windows Sleep() function instead of the
- *                     generic 'busy wait' in _wait().
+ *                     generic 'busy wait' in i_wait().
  *                   - Moved all the preprocessor include directives to the
  *                     top and tidied up the conditional code blocks  since
  *                     the  code  would not compile using Visual C  6.0  if
- *                     'windows.h'was included in '_wait()' - MT
+ *                     'windows.h'was included in 'i_wait()' - MT
  *                   - Added  a  timestamp to the version  information  and 
  *                     removed  the copyright macro and just used  __DATE__
  *                     instead - MT
+ * 24 Aug 20         - Added type prefixes to vairable names - MT
+ * 21 Sep 20   0.11  - Fixed  bug in argument parser caused by an undefined
+ *                     value for i_abort on the first pass through the loop
+ *                     (only affected Tru64 UNIX) - MT
  *
  * To Do:            - Default to copying standard input to standard output
  *                     if no arguments are specified on the command line.
@@ -106,8 +110,8 @@
  */
 
 #define NAME         "cat"
-#define VERSION      "0.10"
-#define BUILD        "0036"
+#define VERSION      "0.11"
+#define BUILD        "0037"
 #define AUTHOR       "MT"
 
 #define true         1
@@ -138,12 +142,12 @@
 #include <sys/timeb.h>
 #endif
  
-char _bflag, _hflag, _nflag, _rflag, _sflag, _dflag = false;
-char _last; /* Last character read, used to check for a blank lines */
-int _line;  /* Current line number */
-int _blanks;/* Number of successive blank lines */
+char b_bflag, b_hflag, b_nflag, b_rflag, b_sflag, b_bflag = false;
+char c_last; /* Last character read, used to check for a blank lines */
+int i_line;  /* Current line number */
+int i_blanks;/* Number of successive blank lines */
  
-void _version() { /* Display version information */
+void v_version() { /* Display version information */
    fprintf(stderr, "%s: Version %s", NAME, VERSION);
    fprintf(stderr, " (%c%c %c%c%c %s %s)", __DATE__[4], __DATE__[5],
       __DATE__[0], __DATE__[1], __DATE__[2], __DATE__ +9, __TIME__ );
@@ -156,7 +160,7 @@ void _version() { /* Display version information */
 }
  
 #if defined(VMS) || defined(MSDOS) || defined (WIN32) /* Use DEC/Microsoft command line options */
-   void _about() { /* Display help text */
+   void v_about() { /* Display help text */
       fprintf(stdout, "Usage: %s [OPTION]... [FILE]...\n", NAME);
       fprintf(stdout, "Concatenate FILE(s)to standard output.\n\n");
       fprintf(stdout, "  /delay                   delay 8ms between each byte\n");
@@ -169,7 +173,7 @@ void _version() { /* Display version information */
       exit(0);
    }
 #else
-   void _about() { /* Display help text */
+   void v_about() { /* Display help text */
       fprintf(stdout, "Usage: %s [OPTION]... [FILE]...\n", NAME);
       fprintf(stdout, "Concatenate FILE(s)to standard output.\n\n");
       fprintf(stdout, "  -d, --delay              delay 8ms between each byte\n");
@@ -184,205 +188,204 @@ void _version() { /* Display version information */
    }
 #endif
  
-void _error(const char *_fmt, ...) { /* Print formatted error message */
-   va_list _args;
-   va_start(_args, _fmt);
+void v_error(const char *s_fmt, ...) { /* Print formatted error message */
+   va_list t_args;
+   va_start(t_args, s_fmt);
    fprintf(stderr, "%s : ", NAME);
-   vfprintf(stderr, _fmt, _args);
-   va_end(_args);
+   vfprintf(stderr, s_fmt, t_args);
+   va_end(t_args);
 }
  
-int _wait(long _delay) { /* wait for milliseconds */
+int i_wait(long l_delay) { /* wait for milliseconds */
 #if defined(linux)/* Use usleep() function */
-   return (usleep(_delay * 1000));
+   return (usleep(l_delay * 1000));
 #elif defined(WIN32) /* Use usleep() function */
-   Sleep(_delay);
+   Sleep(l_delay);
    return (0);
 #elif defined(VMS) /* Use VMS LIB$WAIT */
-   float _seconds;
-   _seconds = _delay / 1000.0;
-   return (lib$wait(&_seconds));
+   float f_seconds;
+   f_seconds = l_delay / 1000.0;
+   return (lib$wait(&f_seconds));
 #else /* Use a portable but very inefficent busy loop */
-   struct timeb _start, _end;
-   ftime(&_start);
-   ftime(&_end);
-   while ((1000 * (_end.time - _start.time) + _end.millitm - _start.millitm) < _delay) {
-      ftime(&_end);
+   struct timeb t_start, t_end;
+   ftime(&t_start);
+   ftime(&t_end);
+   while ((1000 * (t_end.time - t_start.time) + t_end.millitm - t_start.millitm) < l_delay) {
+      ftime(&t_end);
    }
-   printf(".");
    return(0);
 #endif
 }
 
-int _isfile(char *_name) {
-   struct stat _file_d;
-      stat(_name, &_file_d);
-   return ((_file_d.st_mode & S_IFMT) == S_IFREG);
+int i_isfile(char *s_name) {
+   struct stat t_file_d;
+      stat(s_name, &t_file_d);
+   return ((t_file_d.st_mode & S_IFMT) == S_IFREG);
 }
  
-int _isdir(char *_name) {
-   struct stat _file_d;
-   stat(_name, &_file_d);
-   return ((_file_d.st_mode & S_IFMT) == S_IFDIR);
+int i_isdir(char *s_name) {
+   struct stat t_file_d;
+   stat(s_name, &t_file_d);
+   return ((t_file_d.st_mode & S_IFMT) == S_IFDIR);
 }
  
-int _fprintbuf (FILE *_file, int _size, char _buffer[]) {
-   int _index;
-   for (_index = 0; _index < _size; _index++) {
-      if ((_last == '\n') && (_last == _buffer[_index])) {
-         _blanks++; /* Count consecutive belank lines */
+int i_fprintbuf (FILE *h_file, int i_size, char a_buffer[]) {
+   int i_index;
+   for (i_index = 0; i_index < i_size; i_index++) {
+      if ((c_last == '\n') && (c_last == a_buffer[i_index])) {
+         i_blanks++; /* Count consecutive belank lines */
       } else {
-         _blanks = 0;
+         i_blanks = 0;
       }
-      if ((!_sflag) || (_blanks < 2)) {
-         if ((_last == '\n') && !(_buffer[_index] == '\n' && _bflag)) {
-            if (_nflag) {
-               fprintf(_file, "%6d\t", _line); /* Print line number */
+      if ((!b_sflag) || (i_blanks < 2)) {
+         if ((c_last == '\n') && !(a_buffer[i_index] == '\n' && b_bflag)) {
+            if (b_nflag) {
+               fprintf(h_file, "%6d\t", i_line); /* Print line number */
             }
-            _line++;
+            i_line++;
          }
-         fprintf(_file, "%c", _buffer[_index]);
-         if (_dflag > 0) { /* Optionally add a delay between characters. */
-            fflush(_file);
-            _wait(8); /* An 8 ms delay equates to approximately 2400 baud */
+         fprintf(h_file, "%c", a_buffer[i_index]);
+         if (b_bflag > 0) { /* Optionally add a delay between characters. */
+            fflush(h_file);
+            i_wait(8); /* An 8 ms delay equates to approximately 2400 baud */
          }
       }
-      _last = _buffer[_index]; /* Remember the last character */
+      c_last = a_buffer[i_index]; /* Remember the last character */
    }
-   return(fflush(_file)); /* Return status from fflush() */
+   return(fflush(h_file)); /* Return status from fflush() */
 }
 
 int main(int argc, char **argv) {
-   FILE *file;
-   char _buffer[BUFFER_SIZE];
-   int _bytes; /* Number of bytes read from file */
-   int _size;  /* Number of bytes read into the buffer */
-   int _count, _index;
+   FILE *h_file;
+   char a_buffer[BUFFER_SIZE];
+   int i_bytes; /* Number of bytes read from file */
+   int i_size;  /* Number of bytes read into the buffer */
+   int i_count, i_index;
 #if defined(VMS) || defined(MSDOS) || defined (WIN32) /* Parse DEC/Microsoft style command line options */
-   for (_count = 1; _count < argc; _count++) {
-      if (argv[_count][0] == '/') {
-         for (_index = 0; argv[_count][_index]; _index++) /* Convert option to uppercase */
-            if (argv[_count][_index] >= 'a' && argv[_count][_index] <= 'z')
-               argv[_count][_index] = argv[_count][_index] - 32;
-         if (!strncmp(argv[_count], "/VERSION", _index)) {
-            _version(); /* Display version information */
-         } else if (!strncmp(argv[_count], "/DELAY", _index)) {
-            _dflag = true;
-         } else if (!strncmp(argv[_count], "/NUMBER", _index)) {
-            _nflag = true;
-         } else if (!strncmp(argv[_count], "/IGNORE", _index)) {
-            _nflag = true; _bflag = true;
-         } else if (!strncmp(argv[_count], "/SKIP", _index)) {
-            _sflag = true;
-         } else if (!strncmp(argv[_count], "/RESTART", _index)) {
-            _rflag = true;
-         } else if (!strncmp(argv[_count], "/HEADER", _index)) {
-            if (strlen(argv[_count]) < 4) { /* Check option is not ambigious */
-               _error("option '%s' is ambiguous; please specify '/HEADER' or '/HELP'.\n", argv[_count]);
+   for (i_count = 1; i_count < argc; i_count++) {
+      if (argv[i_count][0] == '/') {
+         for (i_index = 0; argv[i_count][i_index]; i_index++) /* Convert option to uppercase */
+            if (argv[i_count][i_index] >= 'a' && argv[i_count][i_index] <= 'z')
+               argv[i_count][i_index] = argv[i_count][i_index] - 32;
+         if (!strncmp(argv[i_count], "/VERSION", i_index)) {
+            v_version(); /* Display version information */
+         } else if (!strncmp(argv[i_count], "/DELAY", i_index)) {
+            b_bflag = true;
+         } else if (!strncmp(argv[i_count], "/NUMBER", i_index)) {
+            b_nflag = true;
+         } else if (!strncmp(argv[i_count], "/IGNORE", i_index)) {
+            b_nflag = true; b_bflag = true;
+         } else if (!strncmp(argv[i_count], "/SKIP", i_index)) {
+            b_sflag = true;
+         } else if (!strncmp(argv[i_count], "/RESTART", i_index)) {
+            b_rflag = true;
+         } else if (!strncmp(argv[i_count], "/HEADER", i_index)) {
+            if (strlen(argv[i_count]) < 4) { /* Check option is not ambigious */
+               v_error("option '%s' is ambiguous; please specify '/HEADER' or '/HELP'.\n", argv[i_count]);
                exit(-1);
             }
-            _hflag = true;
-         } else if (!strncmp(argv[_count], "/HELP", _index)) {
-            _about();
-         } else if (!strncmp(argv[_count], "/?", _index)) {
-            _about();
+            b_hflag = true;
+         } else if (!strncmp(argv[i_count], "/HELP", i_index)) {
+            v_about();
+         } else if (!strncmp(argv[i_count], "/?", i_index)) {
+            v_about();
          } else { /* If we get here then the we have an invalid option */
-            _error("invalid option %s\nTry '%s /help' for more information.\n", argv[_count] , NAME);
+            v_error("invalid option %s\nTry '%s /help' for more information.\n", argv[i_count] , NAME);
             exit(-1);
          }
-         if (argv[_count][1] != 0) {
-            for (_index = _count; _index < argc - 1; _index++) argv[_index] = argv[_index + 1];
-            argc--; _count--;
+         if (argv[i_count][1] != 0) {
+            for (i_index = i_count; i_index < argc - 1; i_index++) argv[i_index] = argv[i_index + 1];
+            argc--; i_count--;
          }
       }
    }
 #else /* Parse UNIX style command line options */
-   int _abort; /* Stop processing command line */
-   for (_count = 1; _count < argc && (_abort != true); _count++) {
-      if (argv[_count][0] == '-') {
-         _index = 1;
-         while (argv[_count][_index] != 0) {
-            switch (argv[_count][_index]) {
+   char b_abort = false; /* Stop processing command line */
+   for (i_count = 1; i_count < argc && (b_abort != true); i_count++) {
+      if (argv[i_count][0] == '-') {
+         i_index = 1;
+         while (argv[i_count][i_index] != 0) {
+            switch (argv[i_count][i_index]) {
             case 'b': /* Number non empty lines */
-               _nflag = true; _bflag = true; break;
+               b_nflag = true; b_bflag = true; break;
             case 'd': /* Wait between printing characters  */
-               _dflag = true; break;
+               b_bflag = true; break;
             case 'f': /* Print filenames headings */
-               _hflag = true; break;
+               b_hflag = true; break;
             case 'n': /* Number lines */
-               _nflag = true; break;
+               b_nflag = true; break;
             case 'r': /* Restart numbering */
-               _rflag = true; _nflag = true; break;
+               b_rflag = true; b_nflag = true; break;
             case 's': /* Squeeze blank lines */
-               _sflag = true; break;
+               b_sflag = true; break;
             case '?': /* Display help */
-               _about();
+               v_about();
             case '-': /* '--' terminates command line processing */
-               _index = strlen(argv[_count]);
-               if (_index == 2)
-                 _abort = true; /* '--' terminates command line processing */
+               i_index = strlen(argv[i_count]);
+               if (i_index == 2)
+                 b_abort = true; /* '--' terminates command line processing */
                else
-                  if (!strncmp(argv[_count], "--version", _index)) {
-                     _version(); /* Display version information */
-                  } else if (!strncmp(argv[_count], "--delay", _index)) {
-                     _dflag = true;
-                  } else if (!strncmp(argv[_count], "--number", _index)) {
-                     _nflag = true;
-                  } else if (!strncmp(argv[_count], "--number-nonblank", _index)) {
-                     _nflag = true; _bflag = true;
-                  } else if (!strncmp(argv[_count], "--squeeze-blank", _index)) {
-                     if (strlen(argv[_count]) < 4) { /* Check option is not ambigious */
-                        _error("option '%s' is ambiguous; please specify '--squeeze-blank' or '--show-filenames'.\n", argv[_count]);
+                  if (!strncmp(argv[i_count], "--version", i_index)) {
+                     v_version(); /* Display version information */
+                  } else if (!strncmp(argv[i_count], "--delay", i_index)) {
+                     b_bflag = true;
+                  } else if (!strncmp(argv[i_count], "--number", i_index)) {
+                     b_nflag = true;
+                  } else if (!strncmp(argv[i_count], "--number-nonblank", i_index)) {
+                     b_nflag = true; b_bflag = true;
+                  } else if (!strncmp(argv[i_count], "--squeeze-blank", i_index)) {
+                     if (strlen(argv[i_count]) < 4) { /* Check option is not ambigious */
+                        v_error("option '%s' is ambiguous; please specify '--squeeze-blank' or '--show-filenames'.\n", argv[i_count]);
                         exit(-1);
                      }
-                     _sflag = true;
-                  } else if (!strncmp(argv[_count], "--restart-numbering", _index)) {
-                     _rflag = true;
-                  } else if (!strncmp(argv[_count], "--show-filenames", _index)) {
-                     _hflag = true;
-                  } else if (!strncmp(argv[_count], "--help", _index)) {
-                     _about();
+                     b_sflag = true;
+                  } else if (!strncmp(argv[i_count], "--restart-numbering", i_index)) {
+                     b_rflag = true;
+                  } else if (!strncmp(argv[i_count], "--show-filenames", i_index)) {
+                     b_hflag = true;
+                  } else if (!strncmp(argv[i_count], "--help", i_index)) {
+                     v_about();
                   } else { /* If we get here then the we have an invalid long option */
-                     _error("%s: invalid option %s\nTry '%s --help' for more information.\n", argv[_count][_index] , NAME);
+                     v_error("%s: invalid option %s\nTry '%s --help' for more information.\n", argv[i_count][i_index] , NAME);
                      exit(-1);
                   }
-               _index--; /* Leave index pointing at end of string (so argv[_count][_index] = 0) */
+               i_index--; /* Leave index pointing at end of string (so argv[i_count][i_index] = 0) */
                break;
             default: /* If we get here the single letter option is unknown */
-               _error("unknown option -- %c\nTry '%s --help' for more information.\n", argv[_count][_index] , NAME);
+               v_error("unknown option -- %c\nTry '%s --help' for more information.\n", argv[i_count][i_index] , NAME);
                exit(-1);
             }
-            _index++; /* Parse next letter in options */
+            i_index++; /* Parse next letter in options */
          }
-         if (argv[_count][1] != 0) {
-            for (_index = _count; _index < argc - 1; _index++) argv[_index] = argv[_index + 1];
-            argc--; _count--;
+         if (argv[i_count][1] != 0) {
+            for (i_index = i_count; i_index < argc - 1; i_index++) argv[i_index] = argv[i_index + 1];
+            argc--; i_count--;
          }
       }
    }
 #endif
-   _line = 1;
-   for (_count = 1; _count < argc; _count++) { /* Display each file */
-      _bytes = 0;
-      if (_isdir(argv[_count])) { /* Check that argument is not a directory */
-         _error("%s: %s\n", argv[_count], strerror(21));
+   i_line = 1;
+   for (i_count = 1; i_count < argc; i_count++) { /* Display each file */
+      i_bytes = 0;
+      if (i_isdir(argv[i_count])) { /* Check that argument is not a directory */
+         v_error("%s: %s\n", argv[i_count], strerror(21));
       } else {
-         if ((file = fopen(argv[_count], "r")) != NULL) {
-            while((_size = fread(_buffer, 1, BUFFER_SIZE, file)) > 0 ){
-               if (_bytes == 0) {
-                  if (_hflag) fprintf(stdout, "%s:\n", argv[_count]); /* Optionally print filename */
-                  if (_rflag) _line = 1; /* Optionally reset line numbers */
-                  _last = '\n';
+         if ((h_file = fopen(argv[i_count], "r")) != NULL) {
+            while((i_size = fread(a_buffer, 1, BUFFER_SIZE, h_file)) > 0 ){
+               if (i_bytes == 0) {
+                  if (b_hflag) fprintf(stdout, "%s:\n", argv[i_count]); /* Optionally print filename */
+                  if (b_rflag) i_line = 1; /* Optionally reset line numbers */
+                  c_last = '\n';
                }
-               _bytes += _size;
-               _fprintbuf (stdout, _size, _buffer); /* Print buffer */
+               i_bytes += i_size;
+               i_fprintbuf (stdout, i_size, a_buffer); /* Print buffer */
             }
-            fclose(file);
+            fclose(h_file);
          } else {
 #if defined(VMS) /* Use VAX-C extension (avoids potential ACCVIO) */
-             _error("%s: %s\n", argv[_count], strerror(errno, vaxc$errno)); 
+             v_error("%s: %s\n", argv[i_count], strerror(errno, vaxc$errno)); 
 #else
-             _error("%s: %s\n", argv[_count], strerror(errno));
+             v_error("%s: %s\n", argv[i_count], strerror(errno));
 #endif
          }
       }
