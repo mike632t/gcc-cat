@@ -68,28 +68,28 @@
  *                     invalid command line option is specified - MT
  *                   - Removed '--verbose' option - MT
  *                   - Removed DATE macro - MT
- * 29 Mar 20   0.6   - Added a boolean type defination and defined true and
+ * 29 Mar 20   0.6   - Added a boolean type definition and defined true and
  *                     false - MEJT
  * 03 Jul 20   0.7   - Tidied up formatting - MT
- *                   - Changed progran name to use defined text - MT
- *                   - Added  seperate routines to display program  version
+ *                   - Changed program name to use defined text - MT
+ *                   - Added  separate routines to display program  version
  *                     and help text - MT
  * 09 Jul 20   0.8   - Now uses fread() instead of fgetc() which results in
- *                     a four or five fold inrease in performance - MT
- *                   - Moved code to print contents of buffer to a seperate
- *                     function  (depends on glabal vairables to keep track
+ *                     a four or five fold increase in performance - MT
+ *                   - Moved code to print contents of buffer to a separate
+ *                     function  (depends on global variables to keep track
  *                     of line number, blank lines, and the last  character
  *                     printed - MT
+ * 11 Jul 20   0.9   - Checks that the path is not a directory - MT
  *
  * To Do:            - Default to copying standard input to standard output
  *                     if no arguments are specified on the command line.
  *                   - Warn user if a command line option is ambiguous.
- *                   - Check that source is a valid file...
-*/
+ */
  
 #define NAME         "cat"
-#define VERSION      "0.8"
-#define BUILD        "0028"
+#define VERSION      "0.9"
+#define BUILD        "0029"
 #define AUTHOR       "MT"
 #define COPYRIGHT    (__DATE__ +7) /* Extract copyright year from date */
  
@@ -99,9 +99,12 @@
 #define BUFFER_SIZE  16
  
 #include <stdio.h>
-#include <stdlib.h>
+#include <stdlib.h>     /* exit */
 #include <string.h>
 #include <errno.h>
+ 
+#include <sys/types.h>
+#include <sys/stat.h>   /* stat */
  
 char _bflag, _hflag, _nflag, _rflag, _sflag;
 char _last; /* Last character read, used to check for a blank lines */
@@ -111,6 +114,7 @@ int _blanks;/* Number of successive blank lines */
 void about() { /* Display help text */
    fprintf(stdout, "Usage: %s [OPTION]... [FILE]...\n", NAME);
    fprintf(stdout, "Concatenate FILE(s)to standard output.\n\n");
+   fprintf(stdout, "  -d, --delay              delay 100ms between each byte\n");
    fprintf(stdout, "  -f, --filenames          display filenames\n");
    fprintf(stdout, "  -n, --number             number all output lines \n");
    fprintf(stdout, "  -r, --restart            line numbers start at zero, implies -n\n");
@@ -129,6 +133,18 @@ void version() { /* Display version information */
    fprintf(stderr, "This is free software: you are free to change and redistribute it.\n");
    fprintf(stderr, "There is NO WARRANTY, to the extent permitted by law.\n");
    exit(0);
+}
+ 
+int isfile(const char *_name) {
+   struct stat _file_d;
+   stat(_name, &_file_d);
+   return ((_file_d.st_mode & S_IFMT) == S_IFREG);
+}
+ 
+int isdir(const char *_name) {
+   struct stat _file_d;
+   stat(_name, &_file_d);
+   return ((_file_d.st_mode & S_IFMT) == S_IFDIR);   
 }
  
 int fprintbuf (FILE *_file, int _size, char _buffer[]) {
@@ -155,14 +171,14 @@ int fprintbuf (FILE *_file, int _size, char _buffer[]) {
  
 int main(int argc, char **argv) {
    FILE *file;
-   char flag = false;
    char _buffer[BUFFER_SIZE];
    int _bytes; /* Number of bytes read from file */
    int _size;  /* Number of bytes read into the buffer */
+   int _abort; /* Stop processing command line */
    int _count, _index, _status;
  
    /* Parse command line */
-   for (_count = 1; _count < argc && !flag; _count++) {
+   for (_count = 1; _count < argc && (_abort != true); _count++) {
       if (argv[_count][0] == '-') {
          _index = 1;
          while (argv[_count][_index] != 0) {
@@ -182,7 +198,7 @@ int main(int argc, char **argv) {
             case '-': /* '--' terminates command line processing */
                _index = strlen(argv[_count]);
                if (_index == 2) 
-                 flag = true; /* '--' terminates command line processing */
+                 _abort = true; /* '--' terminates command line processing */
                else
                   if (!strncmp(argv[_count], "--version", _index)) {
                      version(); /* Display version information */
@@ -230,22 +246,26 @@ int main(int argc, char **argv) {
    _line = 1;
    for (_count = 1; _count < argc; _count++) {
       _bytes = 0;
-      _size = 0;
-      if ((file = fopen(argv[_count], "r")) != NULL) {
-         while((_size = fread(_buffer, 1, BUFFER_SIZE, file)) > 0 ){ 
-            if (_bytes == 0) {
-               if (_hflag) fprintf(stdout, "%s:\n", argv[_count]); /* Optionally print filename */
-               if (_rflag) _line = 1; /* Optionally reset line numbers */
-               _last = '\n';
-            }
-            _bytes += _size;
-            fprintbuf (stdout, _size, _buffer); /* Print buffer */
-         }
-         fclose(file);
+      if (isdir(argv[_count])) {
+         fprintf(stderr, "%s: %s: %s\n", argv[0], argv[_count], strerror(21));            
       }
       else {
-         _status = errno;
-         fprintf(stderr, "%s: %s: %s\n", argv[0], argv[_count], strerror(_status));      
+         if ((file = fopen(argv[_count], "r")) != NULL) {
+            while((_size = fread(_buffer, 1, BUFFER_SIZE, file)) > 0 ){ 
+               if (_bytes == 0) {
+                  if (_hflag) fprintf(stdout, "%s:\n", argv[_count]); /* Optionally print filename */
+                  if (_rflag) _line = 1; /* Optionally reset line numbers */
+                  _last = '\n';
+               }
+               _bytes += _size;
+               fprintbuf (stdout, _size, _buffer); /* Print buffer */
+            }
+            fclose(file);
+         }
+         else {
+            _status = errno;
+            fprintf(stderr, "%s: %s: %s\n", argv[0], argv[_count], strerror(_status));      
+         }
       }
    }
    exit (0);
