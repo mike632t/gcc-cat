@@ -66,27 +66,35 @@
  *                     including '--version' and '--help' and modified  the
  *                     error  messages  to suggest using '--help'  when  an
  *                     invalid command line option is specified - MT
+ *                   - Removed '--verbose' option - MT
  *                   - Removed DATE macro - MT
+ * 29 Mar 20   0.6   - Added a boolean type defination and defined true and
+ *                     false - MEJT
  *
  * To Do:            - Default to copying standard input to standard output
  *                     if no arguments are specified on the command line.
  *                   - Warn user if a command line option is ambiguous.
  */
  
-#define VERSION       "0.5"
-#define BUILD         "0021"
-#define AUTHOR        "MT"
+#define VERSION       "0.6"
+#define BUILD         "0023"
+#define AUTHOR        "MEJT"
 #define COPYRIGHT     (__DATE__ +7) /* Extract copyright year from date */
  
 #define DEBUG(code)   do {if (__DEBUG__) {code;}} while(0)
 #define __DEBUG__  0
+
+#define true 1
+#define false 0
  
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+typedef char bool;
  
-static int bflag = 0, hflag = 0, nflag = 0, rflag = 0, sflag = 0;
+static bool bflag = false, hflag = false, nflag = false, rflag = false, sflag = false;
 static int line = 0;
 static int chr, prev, blank;
  
@@ -114,7 +122,7 @@ int main(int argc, char **argv) {
   FILE *file;
   int errnum;
   int count, index;
-  int flag = 1;
+  bool flag = true;
  
   for (index = 1; index < argc && flag; index++) {
     if (argv[index][0] == '-') {
@@ -122,20 +130,20 @@ int main(int argc, char **argv) {
       while (argv[index][count] != 0) {
         switch (argv[index][count]) {
           case 'b': /* Number non empty lines */
-            nflag = 1; bflag = 1; break;
+            nflag = true; bflag = true; break;
           case 'h': /* Print filenames headings */
-            hflag = 1; break;          
+            hflag = true; break;          
           case 'n': /* Number lines */
-            nflag = 1; break;
+            nflag = true; break;
           case 'r': /* Restart numbering */
-            rflag = 1; nflag = 1; break;
+            rflag = true; nflag = true; break;
           case 's': /* Squeeze blank lines */
-            sflag = 1; break;
+            sflag = true; break;
           case '-': /* '--' terminates command line processing */
             DEBUG(fprintf(stderr, "%s:%0d: argv[%0d][%0d]: '%c'\n", argv[0], __LINE__, index, count, argv[index][count]));
             count = strlen(argv[index]);
             if (count == 2) 
-              flag = 0; /* '--' terminates command line processing */
+              flag = false; /* '--' terminates command line processing */
             else
               if (!strncmp(argv[index], "--version", count)) { /* Display version information */
                 fprintf(stderr, "%s: Version %s\n", argv[0], VERSION);
@@ -146,19 +154,19 @@ int main(int argc, char **argv) {
                 exit(0);
               }
               else if (!strncmp(argv[index], "--number-nonblank", count)) {
-                nflag = 1; flag = 1;
+                nflag = true; flag = true;
               }
               else if (!strncmp(argv[index], "--number", count)) {
-                nflag = 1;
+                nflag = true;
               }
               else if (!strncmp(argv[index], "--squeeze-blank", count)) {
-                sflag = 1;
+                sflag = true;
               }
               else if (!strncmp(argv[index], "--restart-numbering", count)) {
-                rflag = 1;
+                rflag = true;
               }
               else if (!strncmp(argv[index], "--show-filenames", count)) {
-                hflag = 1;
+                hflag = true;
               }
               else if (!strncmp(argv[index], "--help", count)) {
                 fprintf(stdout, "Usage: %s [OPTION]... [FILE]...\n", argv[0]);
@@ -168,9 +176,8 @@ int main(int argc, char **argv) {
                 fprintf(stdout, "  -r, --restart-numbering  start numbering each line in a file from one\n");
                 fprintf(stdout, "  -s, --squeeze-blank      suppress repeated empty output lines\n");
                 fprintf(stdout, "      --help               display this help and exit\n");
-                fprintf(stdout, "      --version            output version information and exit\n");
-                /* fprintf(stdout, "With no FILE, or when FILE is -, read standard input.\n"); */
-                fprintf(stdout, "\nWhen FILE is -, read standard input.\n");
+                fprintf(stdout, "      --version            output version information and exit\n\n");
+                fprintf(stdout, "With no FILE, or when FILE is -, read standard input.\n");
                 exit(0);
               }
               else { /* If we get here then the we have an invalid long option */
