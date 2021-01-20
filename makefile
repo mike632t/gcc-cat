@@ -25,6 +25,7 @@
 #                      against that expected - MEJT
 #
 PROGRAM = gcc-cat
+FILES		= *.c.* LICENSE README.md makefile
 SOURCE = $(PROGRAM).c
 OBJECT = $(SOURCE:.c=.o)
 #OUTPUT = gcc-cat.t
@@ -52,3 +53,5 @@ clean:
 #	@echo '*** Cleaning up object files'
 	@rm -f $(OBJECT)
 #
+backup:
+	@tar -czvpf $(PROGRAM)-`date +'%Y%m%d%H%M'`.tar.gz $(FILES)
