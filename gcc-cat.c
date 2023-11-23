@@ -103,6 +103,10 @@
  * 21 Sep 20   0.11  - Fixed  bug in argument parser caused by an undefined
  *                     value for i_abort on the first pass through the loop
  *                     (only affected Tru64 UNIX) - MT
+ * 23 Nov 23   0.12  - Fixed  another bug in argument parser that cuased  a
+ *                     segfault if an invalid long argument was included on
+ *                     the command line - MT
+ *                   - Fixed about() and version() to use stdout - MT
  *
  * To Do:            - Default to copying standard input to standard output
  *                     if no arguments are specified on the command line.
@@ -148,14 +152,14 @@ int i_line;  /* Current line number */
 int i_blanks;/* Number of successive blank lines */
  
 void v_version() { /* Display version information */
-   fprintf(stderr, "%s: Version %s", NAME, VERSION);
-   fprintf(stderr, " (%c%c %c%c%c %s %s)", __DATE__[4], __DATE__[5],
-      __DATE__[0], __DATE__[1], __DATE__[2], __DATE__ +9, __TIME__ );
-   fprintf(stderr,"\n");
-   fprintf(stderr, "Copyright(C) %s %s\n", __DATE__ +7, AUTHOR);
-   fprintf(stderr, "License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>.\n");
-   fprintf(stderr, "This is free software: you are free to change and redistribute it.\n");
-   fprintf(stderr, "There is NO WARRANTY, to the extent permitted by law.\n");
+   fprintf(stdout, "%s: Version %s ", NAME, VERSION);
+   if (__DATE__[4] == ' ') fprintf(stdout, "(0"); else fprintf(stdout, "(%c", __DATE__[4]);
+   fprintf(stdout, "%c %c%c%c %s %s)", __DATE__[5], __DATE__[0], __DATE__[1], __DATE__[2], &__DATE__[9], __TIME__ );
+   fprintf(stdout,"\n");
+   fprintf(stdout, "Copyright(C) %s %s\n", __DATE__ +7, AUTHOR);
+   fprintf(stdout, "License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>.\n");
+   fprintf(stdout, "This is free software: you are free to change and redistribute it.\n");
+   fprintf(stdout, "There is NO WARRANTY, to the extent permitted by law.\n");
    exit(0);
 }
  
@@ -194,6 +198,7 @@ void v_error(const char *s_fmt, ...) { /* Print formatted error message */
    fprintf(stderr, "%s : ", NAME);
    vfprintf(stderr, s_fmt, t_args);
    va_end(t_args);
+   exit(-1);
 }
  
 int i_wait(long l_delay) { /* wait for milliseconds */
@@ -282,7 +287,6 @@ int main(int argc, char **argv) {
          } else if (!strncmp(argv[i_count], "/HEADER", i_index)) {
             if (strlen(argv[i_count]) < 4) { /* Check option is not ambigious */
                v_error("option '%s' is ambiguous; please specify '/HEADER' or '/HELP'.\n", argv[i_count]);
-               exit(-1);
             }
             b_hflag = true;
          } else if (!strncmp(argv[i_count], "/HELP", i_index)) {
@@ -291,7 +295,6 @@ int main(int argc, char **argv) {
             v_about();
          } else { /* If we get here then the we have an invalid option */
             v_error("invalid option %s\nTry '%s /help' for more information.\n", argv[i_count] , NAME);
-            exit(-1);
          }
          if (argv[i_count][1] != 0) {
             for (i_index = i_count; i_index < argc - 1; i_index++) argv[i_index] = argv[i_index + 1];
@@ -336,7 +339,6 @@ int main(int argc, char **argv) {
                   } else if (!strncmp(argv[i_count], "--squeeze-blank", i_index)) {
                      if (strlen(argv[i_count]) < 4) { /* Check option is not ambigious */
                         v_error("option '%s' is ambiguous; please specify '--squeeze-blank' or '--show-filenames'.\n", argv[i_count]);
-                        exit(-1);
                      }
                      b_sflag = true;
                   } else if (!strncmp(argv[i_count], "--restart-numbering", i_index)) {
@@ -346,14 +348,12 @@ int main(int argc, char **argv) {
                   } else if (!strncmp(argv[i_count], "--help", i_index)) {
                      v_about();
                   } else { /* If we get here then the we have an invalid long option */
-                     v_error("%s: invalid option %s\nTry '%s --help' for more information.\n", argv[i_count][i_index] , NAME);
-                     exit(-1);
+                     v_error("invalid option %s\nTry '%s --help' for more information.\n", argv[i_count], NAME);
                   }
                i_index--; /* Leave index pointing at end of string (so argv[i_count][i_index] = 0) */
                break;
             default: /* If we get here the single letter option is unknown */
                v_error("unknown option -- %c\nTry '%s --help' for more information.\n", argv[i_count][i_index] , NAME);
-               exit(-1);
             }
             i_index++; /* Parse next letter in options */
          }
