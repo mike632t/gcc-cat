@@ -107,8 +107,10 @@
  *                     segfault if an invalid long argument was included on
  *                     the command line - MT
  *                   - Fixed about() and version() to use stdout - MT
- *                   - Read from stdin if no arguments are specified, or if
+ * 09 Jun 26         - Read from stdin if no arguments are specified, or if
  *                     '-' used as an argument - MT
+ *                   - Read from stdin first if it is redirected and '-' is
+ *                     not included in the arguments - MT 
  *
  * To Do:            - Add delay between digits when printing line numbers.
  */
@@ -259,145 +261,152 @@ int i_fprintbuf (FILE *h_file, int i_size, char a_buffer[]) {
    return(fflush(h_file)); /* Return status from fflush() */
 }
 
-int main(int argc, char **argv) {
-   FILE *h_file;
+void v_cat(FILE *h_file, char *s_name) {
    char a_buffer[BUFFER_SIZE];
    int i_bytes; /* Number of bytes read from file */
    int i_size;  /* Number of bytes read into the buffer */
-   int i_count, i_index;
 
-#if defined(VMS) || defined(MSDOS) || defined (WIN32) /* Parse DEC/Microsoft style command line options */
-   for (i_count = 1; i_count < argc; i_count++) {
-      if (argv[i_count][0] == '/') {
-         for (i_index = 0; argv[i_count][i_index]; i_index++) /* Convert option to uppercase */
-            if (argv[i_count][i_index] >= 'a' && argv[i_count][i_index] <= 'z')
-               argv[i_count][i_index] = argv[i_count][i_index] - 32;
-         if (!strncmp(argv[i_count], "/VERSION", i_index)) {
-            v_version(); /* Display version information */
-         } else if (!strncmp(argv[i_count], "/DELAY", i_index)) {
-            b_bflag = true;
-         } else if (!strncmp(argv[i_count], "/NUMBER", i_index)) {
-            b_nflag = true;
-         } else if (!strncmp(argv[i_count], "/IGNORE", i_index)) {
-            b_nflag = true; b_bflag = true;
-         } else if (!strncmp(argv[i_count], "/SKIP", i_index)) {
-            b_sflag = true;
-         } else if (!strncmp(argv[i_count], "/RESTART", i_index)) {
-            b_rflag = true;
-         } else if (!strncmp(argv[i_count], "/HEADER", i_index)) {
-            if (strlen(argv[i_count]) < 4) { /* Check option is not ambigious */
-               v_error("option '%s' is ambiguous; please specify '/HEADER' or '/HELP'.\n", argv[i_count]);
-            }
-            b_hflag = true;
-         } else if (!strncmp(argv[i_count], "/HELP", i_index)) {
-            v_about();
-         } else if (!strncmp(argv[i_count], "/?", i_index)) {
-            v_about();
-         } else { /* If we get here then the we have an invalid option */
-            v_error("invalid option %s\nTry '%s /help' for more information.\n", argv[i_count] , NAME);
-         }
-         if (argv[i_count][1] != 0) {
-            for (i_index = i_count; i_index < argc - 1; i_index++) argv[i_index] = argv[i_index + 1];
-            argc--; i_count--;
-         }
+   i_bytes = 0;
+
+   while ((i_size = fread(a_buffer, 1, BUFFER_SIZE, h_file)) > 0) {
+      if (i_bytes == 0) {
+         if ((s_name != NULL) && b_hflag)
+            fprintf(stdout, "%s:\n", s_name); /* Optionally print filename */
+
+         if (b_rflag)
+            i_line = 1; /* Optionally reset line numbers */
+
+         c_last = '\n';
       }
+
+      i_bytes += i_size;
+      i_fprintbuf(stdout, i_size, a_buffer); /* Print buffer */
    }
-#else /* Parse UNIX style command line options */
-   char b_abort = false; /* Stop processing command line */
-   for (i_count = 1; i_count < argc && (b_abort != true); i_count++) {
-      if (argv[i_count][0] == '-') {
-         i_index = 1;
-         while (argv[i_count][i_index] != 0) {
-            switch (argv[i_count][i_index]) {
-            case 'b': /* Number non empty lines */
-               b_nflag = true; b_bflag = true; break;
-            case 'd': /* Wait between printing characters  */
-               b_bflag = true; break;
-            case 'f': /* Print filenames headings */
-               b_hflag = true; break;
-            case 'n': /* Number lines */
-               b_nflag = true; break;
-            case 'r': /* Restart numbering */
-               b_rflag = true; b_nflag = true; break;
-            case 's': /* Squeeze blank lines */
-               b_sflag = true; break;
-            case '?': /* Display help */
-               v_about();
-            case '-': /* '--' terminates command line processing */
-               i_index = strlen(argv[i_count]);
-               if (i_index == 2)
-                 b_abort = true; /* '--' terminates command line processing */
-               else
-                  if (!strncmp(argv[i_count], "--version", i_index)) {
-                     v_version(); /* Display version information */
-                  } else if (!strncmp(argv[i_count], "--delay", i_index)) {
-                     b_bflag = true;
-                  } else if (!strncmp(argv[i_count], "--number", i_index)) {
-                     b_nflag = true;
-                  } else if (!strncmp(argv[i_count], "--number-nonblank", i_index)) {
-                     b_nflag = true; b_bflag = true;
-                  } else if (!strncmp(argv[i_count], "--squeeze-blank", i_index)) {
-                     if (strlen(argv[i_count]) < 4) { /* Check option is not ambigious */
-                        v_error("option '%s' is ambiguous; please specify '--squeeze-blank' or '--show-filenames'.\n", argv[i_count]);
-                     }
-                     b_sflag = true;
-                  } else if (!strncmp(argv[i_count], "--restart-numbering", i_index)) {
-                     b_rflag = true;
-                  } else if (!strncmp(argv[i_count], "--show-filenames", i_index)) {
-                     b_hflag = true;
-                  } else if (!strncmp(argv[i_count], "--help", i_index)) {
-                     v_about();
-                  } else { /* If we get here then the we have an invalid long option */
-                     v_error("invalid option %s\nTry '%s --help' for more information.\n", argv[i_count], NAME);
-                  }
-               i_index--; /* Leave index pointing at end of string (so argv[i_count][i_index] = 0) */
-               break;
-            default: /* If we get here the single letter option is unknown */
-               v_error("unknown option -- %c\nTry '%s --help' for more information.\n", argv[i_count][i_index] , NAME);
+}
+
+int main(int argc, char **argv) {
+    FILE *h_file;
+    int i_count, i_index;
+    char b_abort = false; /* Stop processing command line */
+    int b_stdin_first = false; /* Flag if stdin should be read first */
+
+#if defined(VMS) || defined(MSDOS) || defined (WIN32)
+    /* DEC/Microsoft style command line parsing */
+    for (i_count = 1; i_count < argc; i_count++) {
+        if (argv[i_count][0] == '/') {
+            for (i_index = 0; argv[i_count][i_index]; i_index++)
+                if (argv[i_count][i_index] >= 'a' && argv[i_count][i_index] <= 'z')
+                    argv[i_count][i_index] -= 32;
+
+            if (!strncmp(argv[i_count], "/VERSION", i_index)) v_version();
+            else if (!strncmp(argv[i_count], "/DELAY", i_index)) b_bflag = true;
+            else if (!strncmp(argv[i_count], "/NUMBER", i_index)) b_nflag = true;
+            else if (!strncmp(argv[i_count], "/IGNORE", i_index)) { b_nflag = true; b_bflag = true; }
+            else if (!strncmp(argv[i_count], "/SKIP", i_index)) b_sflag = true;
+            else if (!strncmp(argv[i_count], "/RESTART", i_index)) b_rflag = true;
+            else if (!strncmp(argv[i_count], "/HEADER", i_index)) {
+                if (strlen(argv[i_count]) < 4)
+                    v_error("option '%s' is ambiguous; please specify '/HEADER' or '/HELP'.\n", argv[i_count]);
+                b_hflag = true;
             }
-            i_index++; /* Parse next letter in options */
-         }
-         if (argv[i_count][1] != 0) {
-            for (i_index = i_count; i_index < argc - 1; i_index++) argv[i_index] = argv[i_index + 1];
-            argc--; i_count--;
-         }
-      }
-   }
+            else if (!strncmp(argv[i_count], "/HELP", i_index) || !strncmp(argv[i_count], "/?", i_index)) v_about();
+            else v_error("invalid option %s\nTry '%s /help' for more information.\n", argv[i_count], NAME);
 
-   /* If no files specified, read from standard input */
-   if (argc == 1) {
-      c_last = '\n';
-      while ((i_size = fread(a_buffer, 1, BUFFER_SIZE, stdin)) > 0) {
-         i_fprintbuf(stdout, i_size, a_buffer);
-      }
-   }
-
-#endif
-
-   for (i_count = 1; i_count < argc; i_count++) { /* Display each file */
-      i_bytes = 0;
-      if (i_isdir(argv[i_count])) { /* Check that argument is not a directory */
-         v_error("%s: %s\n", argv[i_count], strerror(21));
-      } else {
-         if ((h_file = fopen(argv[i_count], "r")) != NULL) {
-            while((i_size = fread(a_buffer, 1, BUFFER_SIZE, h_file)) > 0 ){
-               if (i_bytes == 0) {
-                  if (b_hflag) fprintf(stdout, "%s:\n", argv[i_count]); /* Optionally print filename */
-                  if (b_rflag) i_line = 1; /* Optionally reset line numbers */
-                  c_last = '\n';
-               }
-               i_bytes += i_size;
-               i_fprintbuf (stdout, i_size, a_buffer); /* Print buffer */
+            if (argv[i_count][1] != 0) {
+                for (i_index = i_count; i_index < argc - 1; i_index++) argv[i_index] = argv[i_index + 1];
+                argc--; i_count--;
             }
-            fclose(h_file);
-         } else {
-#if defined(VMS) /* Use VAX-C extension (avoids potential ACCVIO) */
-             v_error("%s: %s\n", argv[i_count], strerror(errno, vaxc$errno)); 
+        }
+    }
 #else
-             v_error("%s: %s\n", argv[i_count], strerror(errno));
+    /* UNIX style command line parsing */
+    for (i_count = 1; i_count < argc && (b_abort != true); i_count++) {
+        if (argv[i_count][0] == '-') {
+            i_index = 1;
+            while (argv[i_count][i_index] != 0) {
+                switch (argv[i_count][i_index]) {
+                    case 'b': b_nflag = true; b_bflag = true; break;
+                    case 'd': b_bflag = true; break;
+                    case 'f': b_hflag = true; break;
+                    case 'n': b_nflag = true; break;
+                    case 'r': b_rflag = true; b_nflag = true; break;
+                    case 's': b_sflag = true; break;
+                    case '?': v_about();
+                    case '-':
+                        i_index = strlen(argv[i_count]);
+                        if (i_index == 2) b_abort = true;
+                        else if (!strncmp(argv[i_count], "--version", i_index)) v_version();
+                        else if (!strncmp(argv[i_count], "--delay", i_index)) b_bflag = true;
+                        else if (!strncmp(argv[i_count], "--number", i_index)) b_nflag = true;
+                        else if (!strncmp(argv[i_count], "--number-nonblank", i_index)) { b_nflag = true; b_bflag = true; }
+                        else if (!strncmp(argv[i_count], "--squeeze-blank", i_index)) {
+                            if (strlen(argv[i_count]) < 4)
+                                v_error("option '%s' is ambiguous; please specify '--squeeze-blank' or '--show-filenames'.\n", argv[i_count]);
+                            b_sflag = true;
+                        }
+                        else if (!strncmp(argv[i_count], "--restart-numbering", i_index)) b_rflag = true;
+                        else if (!strncmp(argv[i_count], "--show-filenames", i_index)) b_hflag = true;
+                        else if (!strncmp(argv[i_count], "--help", i_index)) v_about();
+                        else v_error("invalid option %s\nTry '%s --help' for more information.\n", argv[i_count], NAME);
+                        i_index--;
+                        break;
+                    default:
+                        v_error("unknown option -- %c\nTry '%s --help' for more information.\n", argv[i_count][i_index], NAME);
+                }
+                i_index++;
+            }
+            if (argv[i_count][1] != 0) {
+                for (i_index = i_count; i_index < argc - 1; i_index++) argv[i_index] = argv[i_index + 1];
+                argc--; i_count--;
+            }
+        }
+    }
 #endif
-         }
-      }
-   }
-   exit (0);
+
+
+    i_line = 1;
+
+    /* Check if stdin should be read first */
+#if defined(linux) || defined(__unix__) || defined(__APPLE__)
+    b_stdin_first = false;
+    for (i_count = 1; i_count < argc; i_count++) {
+        if (!strcmp(argv[i_count], "-")) {
+            b_stdin_first = true;
+            break;
+        }
+    }
+    if (!b_stdin_first && !isatty(fileno(stdin))) {
+        v_cat(stdin, NULL); /* Read piped stdin first */
+    }
+#endif
+
+    /* No files specified after option parsing? Done. */
+    if (argc == 1) exit(0);
+
+    /* Loop through files */
+    for (i_count = 1; i_count < argc; i_count++) {
+
+        /* Special case: '-' means stdin */
+        if (!strcmp(argv[i_count], "-")) {
+            v_cat(stdin, NULL);
+            continue;
+        }
+
+        if (i_isdir(argv[i_count])) {
+            v_error("%s: %s\n", argv[i_count], strerror(21));
+        }
+
+        if ((h_file = fopen(argv[i_count], "r")) != NULL) {
+            v_cat(h_file, argv[i_count]);
+            fclose(h_file);
+        } else {
+#if defined(VMS)
+            v_error("%s: %s\n", argv[i_count], strerror(errno, vaxc$errno));
+#else
+            v_error("%s: %s\n", argv[i_count], strerror(errno));
+#endif
+        }
+    }
+
+    exit(0);
 }
