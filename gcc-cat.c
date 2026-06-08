@@ -68,16 +68,16 @@
  *                     invalid command line option is specified - MT
  *                   - Removed '--verbose' option - MT
  *                   - Removed DATE macro - MT
- * 29 Mar 20   0.6   - Added a boolean type defination and defined true and
+ * 29 Mar 20   0.6   - Added a boolean type definition and defined true and
  *                     false - MEJT
  * 03 Jul 20   0.7   - Tidied up formatting - MT
- *                   - Changed progran name to use defined text - MT
- *                   - Added  seperate routines to display program  version
+ *                   - Changed program name to use defined text - MT
+ *                   - Added  separate routines to display program  version
  *                     and help text - MT
  * 09 Jul 20   0.8   - Now uses fread() instead of fgetc() which results in
- *                     a four or five fold inrease in performance - MT
- *                   - Moved code to print contents of buffer to a seperate
- *                     function  (depends on glabal vairables to keep track
+ *                     a four or five fold increase in performance - MT
+ *                   - Moved code to print contents of buffer to a separate
+ *                     function  (depends on global variables to keep track
  *                     of line number, blank lines, and the last  character
  *                     printed - MT
  * 11 Jul 20   0.9   - Checks that the path is not a directory - MT
@@ -91,15 +91,15 @@
  *                     character using either a generic busy wait loop or a
  *                     platform specific routine for linux and VMS - MT
  * 03 Aug 20   0.10  - Now uses the windows Sleep() function instead of the
- *                     generic 'busy wait' in i_wait().
+ *                     generic 'busy wait' in _wait().
  *                   - Moved all the preprocessor include directives to the
  *                     top and tidied up the conditional code blocks  since
  *                     the  code  would not compile using Visual C  6.0  if
- *                     'windows.h'was included in 'i_wait()' - MT
+ *                     'windows.h'was included in '_wait()' - MT
  *                   - Added  a  timestamp to the version  information  and 
  *                     removed  the copyright macro and just used  __DATE__
  *                     instead - MT
- * 24 Aug 20         - Added type prefixes to vairable names - MT
+ * 24 Aug 20         - Added type prefixes to variable names - MT
  * 21 Sep 20   0.11  - Fixed  bug in argument parser caused by an undefined
  *                     value for i_abort on the first pass through the loop
  *                     (only affected Tru64 UNIX) - MT
@@ -107,15 +107,15 @@
  *                     segfault if an invalid long argument was included on
  *                     the command line - MT
  *                   - Fixed about() and version() to use stdout - MT
+ *                   - Read from stdin if no arguments are specified, or if
+ *                     '-' used as an argument - MT
  *
- * To Do:            - Default to copying standard input to standard output
- *                     if no arguments are specified on the command line.
- *                   - Add delay between digits when printing line numbers.
+ * To Do:            - Add delay between digits when printing line numbers.
  */
 
 #define NAME         "cat"
-#define VERSION      "0.11"
-#define BUILD        "0037"
+#define VERSION      "0.12"
+#define BUILD        "0038"
 #define AUTHOR       "MT"
 
 #define true         1
@@ -147,9 +147,9 @@
 #endif
  
 char b_bflag, b_hflag, b_nflag, b_rflag, b_sflag, b_bflag = false;
-char c_last; /* Last character read, used to check for a blank lines */
-int i_line;  /* Current line number */
-int i_blanks;/* Number of successive blank lines */
+char c_last = '\0'; /* Last character read, used to check for a blank lines */
+int i_blanks = 0; /* Number of successive blank lines */
+int i_line = 1;  /* Current line number */
  
 void v_version() { /* Display version information */
    fprintf(stdout, "%s: Version %s ", NAME, VERSION);
@@ -198,7 +198,6 @@ void v_error(const char *s_fmt, ...) { /* Print formatted error message */
    fprintf(stderr, "%s : ", NAME);
    vfprintf(stderr, s_fmt, t_args);
    va_end(t_args);
-   exit(-1);
 }
  
 int i_wait(long l_delay) { /* wait for milliseconds */
@@ -266,6 +265,7 @@ int main(int argc, char **argv) {
    int i_bytes; /* Number of bytes read from file */
    int i_size;  /* Number of bytes read into the buffer */
    int i_count, i_index;
+
 #if defined(VMS) || defined(MSDOS) || defined (WIN32) /* Parse DEC/Microsoft style command line options */
    for (i_count = 1; i_count < argc; i_count++) {
       if (argv[i_count][0] == '/') {
@@ -363,8 +363,17 @@ int main(int argc, char **argv) {
          }
       }
    }
+
+   /* If no files specified, read from standard input */
+   if (argc == 1) {
+      c_last = '\n';
+      while ((i_size = fread(a_buffer, 1, BUFFER_SIZE, stdin)) > 0) {
+         i_fprintbuf(stdout, i_size, a_buffer);
+      }
+   }
+
 #endif
-   i_line = 1;
+
    for (i_count = 1; i_count < argc; i_count++) { /* Display each file */
       i_bytes = 0;
       if (i_isdir(argv[i_count])) { /* Check that argument is not a directory */
