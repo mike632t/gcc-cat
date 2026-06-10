@@ -111,6 +111,7 @@
  *                     '-' used as an argument - MT
  *                   - Read from stdin first if it is redirected and '-' is
  *                     not included in the arguments - MT 
+ * 10 Jun 26         - Fixed problem with the delay flag - MT
  *
  * To Do:            - Add delay between digits when printing line numbers.
  */
@@ -148,7 +149,7 @@
 #include <sys/timeb.h>
 #endif
  
-char b_bflag, b_hflag, b_nflag, b_rflag, b_sflag, b_bflag = false;
+char b_dflag, b_hflag, b_nflag, b_rflag, b_sflag, b_bflag = false;
 char c_last = '\0'; /* Last character read, used to check for a blank lines */
 int i_blanks = 0; /* Number of successive blank lines */
 int i_line = 1;  /* Current line number */
@@ -251,7 +252,7 @@ int i_fprintbuf (FILE *h_file, int i_size, char a_buffer[]) {
             i_line++;
          }
          fprintf(h_file, "%c", a_buffer[i_index]);
-         if (b_bflag > 0) { /* Optionally add a delay between characters. */
+         if (b_dflag > 0) { /* Optionally add a delay between characters. */
             fflush(h_file);
             i_wait(8); /* An 8 ms delay equates to approximately 2400 baud */
          }
@@ -288,9 +289,62 @@ int main(int argc, char **argv) {
     FILE *h_file;
     int i_count, i_index;
     char b_abort = false; /* Stop processing command line */
-    int b_stdin_first = false; /* Flag if stdin should be read first */
+    int b_stdin = false; /* Flag if stdin should be read first */
 
-#if defined(VMS) || defined(MSDOS) || defined (WIN32)
+#if defined(linux) || defined(__unix__) || defined(__APPLE__)
+    /* UNIX style command line parsing */
+    for (i_count = 1; i_count < argc && (b_abort != true); i_count++) {
+        if (argv[i_count][0] == '-') {
+            i_index = 1;
+            while (argv[i_count][i_index] != 0) {
+                switch (argv[i_count][i_index]) {
+                    case 'b': b_nflag = true; b_bflag = true; break;
+                    case 'd': b_dflag = true; break;
+                    case 'f': b_hflag = true; break;
+                    case 'n': b_nflag = true; break;
+                    case 'r': b_rflag = true; b_nflag = true; break;
+                    case 's': b_sflag = true; break;
+                    case '?': v_about();
+                    case '-':
+                        i_index = strlen(argv[i_count]);
+                        if (i_index == 2) b_abort = true;
+                        else if (!strncmp(argv[i_count], "--version", i_index)) v_version();
+                        else if (!strncmp(argv[i_count], "--delay", i_index)) b_dflag = true;
+                        else if (!strncmp(argv[i_count], "--number", i_index)) b_nflag = true;
+                        else if (!strncmp(argv[i_count], "--number-nonblank", i_index)) { b_nflag = true; b_bflag = true; }
+                        else if (!strncmp(argv[i_count], "--squeeze-blank", i_index)) {
+                            if (strlen(argv[i_count]) < 4)
+                                v_error("option '%s' is ambiguous; please specify '--squeeze-blank' or '--show-filenames'.\n", argv[i_count]);
+                            b_sflag = true;
+                        }
+                        else if (!strncmp(argv[i_count], "--restart-numbering", i_index)) b_rflag = true;
+                        else if (!strncmp(argv[i_count], "--show-filenames", i_index)) b_hflag = true;
+                        else if (!strncmp(argv[i_count], "--help", i_index)) v_about();
+                        else v_error("invalid option %s\nTry '%s --help' for more information.\n", argv[i_count], NAME);
+                        i_index--;
+                        break;
+                    default:
+                        v_error("unknown option -- %c\nTry '%s --help' for more information.\n", argv[i_count][i_index], NAME);
+                }
+                i_index++;
+            }
+            if (argv[i_count][1] != 0) {
+                for (i_index = i_count; i_index < argc - 1; i_index++) argv[i_index] = argv[i_index + 1];
+                argc--; i_count--;
+            }
+        }
+    }
+
+    /* Check if stdin should be read first */
+    b_stdin = false;
+    for (i_count = 1; i_count < argc; i_count++) {
+        if (!strcmp(argv[i_count], "-")) {
+            b_stdin = true;
+            break;
+        }
+    }
+    if (!isatty(fileno(stdin)) && (!b_stdin)) v_cat(stdin, NULL); /* Read piped stdin first */
+#else
     /* DEC/Microsoft style command line parsing */
     for (i_count = 1; i_count < argc; i_count++) {
         if (argv[i_count][0] == '/') {
@@ -317,66 +371,6 @@ int main(int argc, char **argv) {
                 argc--; i_count--;
             }
         }
-    }
-#else
-    /* UNIX style command line parsing */
-    for (i_count = 1; i_count < argc && (b_abort != true); i_count++) {
-        if (argv[i_count][0] == '-') {
-            i_index = 1;
-            while (argv[i_count][i_index] != 0) {
-                switch (argv[i_count][i_index]) {
-                    case 'b': b_nflag = true; b_bflag = true; break;
-                    case 'd': b_bflag = true; break;
-                    case 'f': b_hflag = true; break;
-                    case 'n': b_nflag = true; break;
-                    case 'r': b_rflag = true; b_nflag = true; break;
-                    case 's': b_sflag = true; break;
-                    case '?': v_about();
-                    case '-':
-                        i_index = strlen(argv[i_count]);
-                        if (i_index == 2) b_abort = true;
-                        else if (!strncmp(argv[i_count], "--version", i_index)) v_version();
-                        else if (!strncmp(argv[i_count], "--delay", i_index)) b_bflag = true;
-                        else if (!strncmp(argv[i_count], "--number", i_index)) b_nflag = true;
-                        else if (!strncmp(argv[i_count], "--number-nonblank", i_index)) { b_nflag = true; b_bflag = true; }
-                        else if (!strncmp(argv[i_count], "--squeeze-blank", i_index)) {
-                            if (strlen(argv[i_count]) < 4)
-                                v_error("option '%s' is ambiguous; please specify '--squeeze-blank' or '--show-filenames'.\n", argv[i_count]);
-                            b_sflag = true;
-                        }
-                        else if (!strncmp(argv[i_count], "--restart-numbering", i_index)) b_rflag = true;
-                        else if (!strncmp(argv[i_count], "--show-filenames", i_index)) b_hflag = true;
-                        else if (!strncmp(argv[i_count], "--help", i_index)) v_about();
-                        else v_error("invalid option %s\nTry '%s --help' for more information.\n", argv[i_count], NAME);
-                        i_index--;
-                        break;
-                    default:
-                        v_error("unknown option -- %c\nTry '%s --help' for more information.\n", argv[i_count][i_index], NAME);
-                }
-                i_index++;
-            }
-            if (argv[i_count][1] != 0) {
-                for (i_index = i_count; i_index < argc - 1; i_index++) argv[i_index] = argv[i_index + 1];
-                argc--; i_count--;
-            }
-        }
-    }
-#endif
-
-
-    i_line = 1;
-
-    /* Check if stdin should be read first */
-#if defined(linux) || defined(__unix__) || defined(__APPLE__)
-    b_stdin_first = false;
-    for (i_count = 1; i_count < argc; i_count++) {
-        if (!strcmp(argv[i_count], "-")) {
-            b_stdin_first = true;
-            break;
-        }
-    }
-    if (!b_stdin_first && !isatty(fileno(stdin))) {
-        v_cat(stdin, NULL); /* Read piped stdin first */
     }
 #endif
 
